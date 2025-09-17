@@ -26,6 +26,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest
 
       # 4. Lancer les tests backend
       - name: Run backend tests
@@ -39,13 +40,19 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # 6. Déployer Azure Functions (Python)
+      # 6. Installer Azure Functions Core Tools
+      - name: Install Azure Functions Core Tools
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          npm install -g azure-functions-core-tools@4 --unsafe-perm true
+
+      # 7. Déployer Azure Functions (Python)
       - name: Deploy backend to Azure Functions
         run: |
           cd backend
           func azure functionapp publish ${{ secrets.AZURE_FUNCTIONAPP_NAME }}
 
-      # 7. Déployer le frontend (site statique dans Storage)
+      # 8. Déployer le frontend (site statique dans Storage)
       - name: Deploy frontend to Azure Storage
         run: |
           az storage blob upload-batch \
