@@ -49,8 +49,8 @@ jobs:
       # 7. Déployer Azure Functions (Python)
       - name: Deploy backend to Azure Functions
         run: |
-          cd backend
-          func azure functionapp publish ${{ secrets.AZURE_FUNCTIONAPP_NAME }}
+            cd backend
+            func azure functionapp publish ${{ secrets.AZURE_FUNCTIONAPP_NAME }} --python --publish-local-settings -i
 
       # 8. Déployer le frontend (site statique dans Storage)
       - name: Deploy frontend to Azure Storage
