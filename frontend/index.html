@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Vote Bayrou</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        #vote-section { display: none; margin-top: 2em; }
+        button { margin: 0.5em; padding: 0.5em 1em; }
+        #message { margin-top: 1em; color: green; }
+        #error { margin-top: 1em; color: red; }
+    </style>
+</head>
+<body>
+    <h1>Vote Bayrou</h1>
+    <div id="login-section">
+        <input type="email" id="email" placeholder="Votre email" required />
+        <button onclick="registerUser()">Se connecter</button>
+    </div>
+    <div id="vote-section">
+        <p>Bienvenue <span id="user-email"></span> !</p>
+        <button onclick="sendVote('oui')">Oui</button>
+        <button onclick="sendVote('non')">Non</button>
+    </div>
+    <div id="message"></div>
+    <div id="error"></div>
+    <div id="votes-list-section" style="margin-top:2em; display:none;">
+        <h2>Liste des votes</h2>
+        <button onclick="refreshVotes()">Rafraîchir</button>
+        <ul id="votes-list"></ul>
+    </div>
+    <script>
+        let userId = null;
+        let email = null;
+        async function registerUser() {
+            email = document.getElementById('email').value.trim();
+            if (!email) {
+                showError('Veuillez entrer un email.');
+                return;
+            }
+            try {
+                const res = await fetch('https://bayrou-functionsgab.azurewebsites.net/api/postUser', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await res.json();
+                if (res.ok || res.status === 201) {
+                    userId = data.document.id;
+                    document.getElementById('login-section').style.display = 'none';
+                    document.getElementById('votes-list-section').style.display = 'block';
+                    document.getElementById('user-email').textContent = email;
+                    showMessage('Connecté !');
+                    await updateVoteSection();
+                    refreshVotes();
+                } else {
+                    showError(data.error || 'Erreur lors de la connexion.');
+                }
+            } catch (e) {
+                showError('Erreur réseau.');
+            }
+        }
+
+        async function updateVoteSection() {
+            if (!email) return;
+
+            try {
+                const res = await fetch(`https://bayrou-functionsgab.azurewebsites.net/api/hasVoted?email=${encodeURIComponent(email)}`);
+                const data = await res.json();
+
+                const section = document.getElementById('vote-section');
+                section.style.display = 'block';
+
+                const buttons = section.querySelectorAll('button');
+                if (data.alreadyVoted) {
+                    buttons.forEach(b => b.disabled = true);
+                    showMessage("Vous avez déjà voté.");
+                } else {
+                    buttons.forEach(b => b.disabled = false);
+                }
+            } catch (e) {
+                showError("Erreur réseau lors de la vérification du vote.");
+            }
+        }
+
+        async function sendVote(choice) {
+            if (!userId || !email) {
+                showError('Non connecté.');
+                return;
+            }
+            try {
+                const res = await fetch('https://bayrou-functionsgab.azurewebsites.net/api/vote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, email, choice })
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showMessage('Vote enregistré : ' + choice);
+                    await updateVoteSection();
+                    refreshVotes();
+                } else if (res.status === 403 && data.error && data.error.includes('déjà voté')) {
+                    await updateVoteSection();
+                } else {
+                    showError(data.error || 'Erreur lors du vote.');
+                }
+            } catch (e) {
+                showError('Erreur réseau.');
+            }
+        }
+        async function refreshVotes() {
+            try {
+                const res = await fetch('https://bayrou-functionsgab.azurewebsites.net/api/listVotes');
+                const data = await res.json();
+                if (res.ok) {
+                    const ul = document.getElementById('votes-list');
+                    ul.innerHTML = '';
+                    if (data.votes && data.votes.length > 0) {
+                        data.votes.forEach(v => {
+                            const li = document.createElement('li');
+                            li.textContent = `${v.email} : ${v.choice} (${v.timestamp ? v.timestamp.split('T')[0] : ''})`;
+                            ul.appendChild(li);
+                        });
+                    } else {
+                        ul.innerHTML = '<li>Aucun vote pour le moment.</li>';
+                    }
+                    // Vérifier l'état du vote à chaque refresh
+                    await updateVoteSection();
+                } else {
+                    showError(data.error || 'Erreur lors du chargement des votes.');
+                }
+            } catch (e) {
+                showError('Erreur réseau lors du chargement des votes.');
+            }
+        }
+        function showMessage(msg) {
+            document.getElementById('message').textContent = msg;
+            document.getElementById('error').textContent = '';
+        }
+        function showError(msg) {
+            document.getElementById('error').textContent = msg;
+            document.getElementById('message').textContent = '';
+        }
+    </script>
+</body>
+</html>
